@@ -1,6 +1,6 @@
 import os
 import json
-from typing import Tuple, Dict
+from typing import Tuple, Dict, Optional
 
 import torch
 import torch.nn as nn
@@ -12,6 +12,7 @@ import numpy as np
 import gradio as gr
 from torchcam.methods import GradCAM
 from torchvision.transforms.functional import to_pil_image
+from src.inference.xai import load_temperature, load_operating_points, apply_temperature
 
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -54,12 +55,14 @@ def get_transforms():
     ])
 
 
-def predict_and_explain(img: Image.Image, model: nn.Module, labels: list):
+def predict_and_explain(img: Image.Image, model: nn.Module, labels: list, temperature: Optional[float], op: Optional[dict]):
     tfm = get_transforms()
     x = tfm(img).unsqueeze(0).to(DEVICE)
 
     with torch.no_grad():
         logits = model(x)
+        if temperature is not None:
+            logits = apply_temperature(logits, temperature)
         probs = torch.softmax(logits, dim=1).squeeze(0).cpu().numpy()
         pred_idx = int(np.argmax(probs))
 
@@ -81,7 +84,18 @@ def predict_and_explain(img: Image.Image, model: nn.Module, labels: list):
     result = Image.fromarray(overlay)
 
     prob_dict = {label: float(probs[i]) for i, label in enumerate(labels)}
-    return result, labels[pred_idx], prob_dict
+
+    # Melanoma verdict using operating point if available
+    melanoma_decision = "N/A"
+    if op is not None:
+        mel_idx = int(op.get('class_index', -1))
+        thr_key = 'melanoma_spec95'
+        threshold = float(op.get('thresholds', {}).get(thr_key, 0.5))
+        if mel_idx >= 0 and mel_idx < len(labels):
+            mel_prob = float(probs[mel_idx])
+            melanoma_decision = f"p={mel_prob:.3f} | thr={threshold:.3f} → {'melanoma' if mel_prob >= threshold else 'non-melanoma'}"
+
+    return result, labels[pred_idx], prob_dict, melanoma_decision
 
 
 def plt_colormap(arr: np.ndarray) -> np.ndarray:
@@ -94,15 +108,15 @@ def plt_colormap(arr: np.ndarray) -> np.ndarray:
     return np.stack([r, g, b, np.ones_like(r)], axis=-1)
 
 
-def make_interface(model: nn.Module, labels: list):
+def make_interface(model: nn.Module, labels: list, temperature: Optional[float], op: Optional[dict]):
     def _fn(image: Image.Image):
         if image.mode != 'RGB':
             image = image.convert('RGB')
-        overlay, pred_label, prob_dict = predict_and_explain(image, model, labels)
+        overlay, pred_label, prob_dict, decision = predict_and_explain(image, model, labels, temperature, op)
         # Sort probabilities descending
         items = sorted(prob_dict.items(), key=lambda kv: kv[1], reverse=True)
         table = {k: round(v, 4) for k, v in items}
-        return overlay, pred_label, table
+        return overlay, pred_label, table, decision
 
     return gr.Interface(
         fn=_fn,
@@ -110,10 +124,11 @@ def make_interface(model: nn.Module, labels: list):
         outputs=[
             gr.Image(type="pil", label="Grad-CAM Explanation"),
             gr.Label(label="Predicted Class"),
-            gr.JSON(label="Class Probabilities")
+            gr.JSON(label="Class Probabilities"),
+            gr.Textbox(label="Melanoma Decision (calibrated)")
         ],
         title="Melanoma Detection with XAI (Grad-CAM)",
-        description="Upload an image. The model predicts the class and shows a heatmap highlighting regions that influenced the decision.",
+        description="Upload an image. The model predicts the class and shows a heatmap highlighting regions that influenced the decision. Probabilities are temperature-calibrated; melanoma verdict uses an operating threshold (spec≈95%).",
         allow_flagging="never",
     )
 
@@ -122,7 +137,10 @@ def main():
     weights = os.environ.get("WEIGHTS_PATH", "melanoma_resnet50.pth")
     label_map_path = os.environ.get("LABEL_MAP", "label_map.json")
     model, labels = load_model(weights, label_map_path)
-    demo = make_interface(model, labels)
+    # Load calibration and operating points
+    temperature = load_temperature(os.environ.get("TEMPERATURE_JSON", "models/checkpoints/temperature.json"))
+    op = load_operating_points(os.environ.get("OPERATING_JSON", "models/checkpoints/operating_points.json"))
+    demo = make_interface(model, labels, temperature, op)
     demo.launch(server_name="0.0.0.0", server_port=int(os.environ.get("PORT", 7860)))
 
 
