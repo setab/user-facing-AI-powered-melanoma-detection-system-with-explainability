@@ -13,6 +13,7 @@ import gradio as gr
 from torchcam.methods import GradCAM
 from torchvision.transforms.functional import to_pil_image
 from src.inference.xai import load_temperature, load_operating_points, apply_temperature
+from src.config import Config
 
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -73,15 +74,27 @@ def predict_and_explain(img: Image.Image, model: nn.Module, labels: list, temper
     activation_maps = cam_extractor(class_idx=pred_idx, scores=logits)
     cam = activation_maps[0].squeeze().cpu()
 
+    # Ensure 2D (H, W) for overlay
+    if cam.ndim == 3:
+        cam = cam.squeeze(0)
+        if cam.ndim == 3:  # still 3D (C,H,W), take first channel
+            cam = cam[0]
+
     # Resize CAM to image size and overlay
     img_resized = img.resize((224, 224))
-    cam_img = to_pil_image(cam, mode='F').resize((224, 224))
+    cam_img = to_pil_image(cam, mode='F').resize(img_resized.size)
     cam_arr = np.array(cam_img)
     cam_arr = (cam_arr - cam_arr.min()) / (cam_arr.ptp() + 1e-8)
     heatmap = (plt_colormap(cam_arr)[:, :, :3] * 255).astype(np.uint8)
     overlay = (0.5 * np.array(img_resized) + 0.5 * heatmap).astype(np.uint8)
 
     result = Image.fromarray(overlay)
+
+    # Clean up hooks
+    try:
+        cam_extractor.remove_hooks()
+    except Exception:
+        pass
 
     prob_dict = {label: float(probs[i]) for i, label in enumerate(labels)}
 
@@ -134,14 +147,37 @@ def make_interface(model: nn.Module, labels: list, temperature: Optional[float],
 
 
 def main():
-    weights = os.environ.get("WEIGHTS_PATH", "melanoma_resnet50.pth")
-    label_map_path = os.environ.get("LABEL_MAP", "label_map.json")
+    # Load config
+    Config.validate()
+    
+    weights = str(Config.WEIGHTS_PATH)
+    label_map_path = str(Config.LABEL_MAP_PATH)
+    
     model, labels = load_model(weights, label_map_path)
+    
     # Load calibration and operating points
-    temperature = load_temperature(os.environ.get("TEMPERATURE_JSON", "models/checkpoints/temperature.json"))
-    op = load_operating_points(os.environ.get("OPERATING_JSON", "models/checkpoints/operating_points.json"))
+    temperature = load_temperature(str(Config.TEMPERATURE_JSON_PATH))
+    op = load_operating_points(str(Config.OPERATING_JSON_PATH))
+    
     demo = make_interface(model, labels, temperature, op)
-    demo.launch(server_name="0.0.0.0", server_port=int(os.environ.get("PORT", 7860)))
+    
+    # Launch with authentication if configured
+    launch_kwargs = {
+        'server_name': Config.GRADIO_SERVER_NAME,
+        'server_port': Config.GRADIO_SERVER_PORT,
+        'share': Config.GRADIO_SHARE,
+    }
+    
+    if Config.has_auth():
+        launch_kwargs['auth'] = Config.get_auth()
+        print(f"🔒 Authentication enabled for user: {Config.GRADIO_USERNAME}")
+    else:
+        print("⚠️  WARNING: No authentication set. Anyone can access this interface.")
+        print("   Set GRADIO_USERNAME and GRADIO_PASSWORD in .env for security.")
+    
+    print(f"🚀 Starting Gradio on {Config.GRADIO_SERVER_NAME}:{Config.GRADIO_SERVER_PORT}")
+    
+    demo.launch(**launch_kwargs)
 
 
 if __name__ == "__main__":

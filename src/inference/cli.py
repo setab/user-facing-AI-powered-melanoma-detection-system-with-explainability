@@ -41,6 +41,7 @@ def main():
     ap.add_argument('--temperature-json', default='models/checkpoints/temperature.json', help='Path to temperature.json')
     ap.add_argument('--operating-json', default='models/checkpoints/operating_points.json', help='Path to operating_points.json')
     ap.add_argument('--operating-key', default='melanoma_spec95', help='Operating point key to use from operating_points.json')
+    ap.add_argument('--no-ask', action='store_true', help='Disable interactive follow-up Q&A (useful for batch/CI runs)')
     args = ap.parse_args()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -80,9 +81,8 @@ def main():
     except Exception as e:
         print(f"Grad-CAM generation skipped: {e}")
 
-    # Ask follow-up if low confidence and melanoma is a class
-    # Optional: ask follow-up if melanoma probability is below threshold
-    if mel_idx is not None and mel_idx >= 0:
+    # Ask follow-up if low confidence and melanoma is a class (unless --no-ask is set)
+    if not args.no_ask and mel_idx is not None and mel_idx >= 0:
         mel_prob = float(probs[mel_idx])
         if mel_prob < threshold:
             refined = ask_followup(mel_prob)
