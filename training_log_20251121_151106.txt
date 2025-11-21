@@ -1,0 +1,7 @@
+usage: compare_models.py [-h] [--metadata METADATA] [--img-dir IMG_DIR]
+                         [--label-map LABEL_MAP] [--output-dir OUTPUT_DIR]
+                         [--architectures ARCHITECTURES [ARCHITECTURES ...]]
+                         [--epochs EPOCHS] [--batch-size BATCH_SIZE] [--lr LR]
+                         [--img-size IMG_SIZE] [--val-split VAL_SPLIT]
+                         [--seed SEED]
+compare_models.py: error: unrecognized arguments: --device cuda
