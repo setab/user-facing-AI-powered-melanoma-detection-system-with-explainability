@@ -48,6 +48,11 @@ secrets/
 credentials/
 *.key
 *.pem
+
+# Private server configurations (if you create any)
+config.local.sh
+server.local.sh
+*_local.sh
 *.crt
 *.cer
 *.p12
