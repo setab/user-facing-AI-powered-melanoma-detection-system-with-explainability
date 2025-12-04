@@ -1,13 +1,12 @@
-# Melanoma Detection with XAI
+# Melanoma Detection with Explainable AI
 
-This repository provides an automated melanoma detection system in PyTorch with:
-- ResNet50 baseline trained on HAM10000-style skin lesion images
-- **Interactive Chat Q&A** for refining uncertain diagnoses in the web UI
-- Temperature calibration for reliable probability estimates
-- Medical operating thresholds (e.g., melanoma at ~95% specificity)
-- Grad-CAM explanations to visualize model decisions
-- **Model Comparison Framework** for evaluating multiple architectures
-- Two inference modes: CLI (batch-ready) and Gradio web UI with chat
+Automated melanoma detection system built with PyTorch. Includes ResNet50 baseline trained on HAM10000 skin lesion images, temperature calibration for reliable probabilities, medical operating thresholds, Grad-CAM explanations, and a web interface with interactive chat for uncertain cases.
+
+Features:
+- Model comparison framework for evaluating multiple architectures
+- CLI for batch inference and Gradio web UI with chat
+- Temperature calibration and clinical thresholds (95% specificity for melanoma)
+- Grad-CAM visualizations to explain model decisions
 
 ## Quick Start
 
@@ -24,25 +23,26 @@ pip install -r requirements/requirements-serve.txt
 pip install -r requirements/requirements-base.txt
 ```
 
-### 2. Configure environment (important for security!)
+### 2. Configure environment
+
+Important for remote access and security:
 
 ```bash
-# Copy template and edit
 cp .env.example .env
 nano .env
 ```
 
-**Required for remote access:**
+Required settings for remote access:
 ```bash
 GRADIO_SERVER_NAME=0.0.0.0
 GRADIO_SERVER_PORT=7860
 
-# Set these for authentication!
+# Authentication (important!)
 GRADIO_USERNAME=your_username
 GRADIO_PASSWORD=your_secure_password
 ```
 
-See `.env.example` for all available options.
+See `.env.example` for all options.
 
 ### 3. Project Structure
 
@@ -51,7 +51,7 @@ See `.env.example` for all available options.
 │   ├── HAM10000_metadata.csv
 │   └── ds/img/
 ├── models/
-│   ├── checkpoints/           # Trained weights and calibration artifacts
+│   ├── checkpoints/           # Trained weights and calibration files
 │   │   ├── melanoma_resnet50_nb.pth
 │   │   ├── temperature.json
 │   │   └── operating_points.json
@@ -59,25 +59,37 @@ See `.env.example` for all available options.
 │       └── label_map_nb.json
 ├── src/
 │   ├── inference/
-│   │   ├── cli.py            # Command-line inference with Q&A
-│   │   └── xai.py            # Shared inference and XAI utilities
+│   │   ├── cli.py            # Command-line inference
+│   │   └── xai.py            # Inference and XAI utilities
 │   ├── training/
 │   │   ├── train.py          # Training utilities
 │   │   ├── compare_models.py # Multi-architecture comparison
-│   │   └── visualize_comparison.py # Generate plots/tables
-│   ├── config.py             # Centralized configuration loader
-│   └── serve_gradio.py       # Gradio web UI with chat Q&A
+│   │   └── visualize_comparison.py # Generate plots
+│   ├── config.py             # Config loader
+│   └── serve_gradio.py       # Gradio web UI with chat
 ├── notebooks/                 # Jupyter notebooks (numbered workflow)
-│   ├── 01_train_baseline.ipynb       # End-to-end training
-│   ├── 02_exploratory_analysis.ipynb # Data exploration
-│   └── 03_model_evaluation.ipynb     # Model testing
+│   ├── 01_train_baseline.ipynb
+│   ├── 02_exploratory_analysis.ipynb
+│   └── 03_model_evaluation.ipynb
 ├── tests/
 │   ├── test_smoke_inference.py
 │   └── test_gradio_chat.py
-├── experiments/               # Outputs (plots, overlays; gitignored)
-├── docs/                      # Project documentation
-│   ├── THESIS_ROADMAP.md     # Complete thesis plan
-│   ├── ML_ROADMAP.md         # ML/software learning path
+├── experiments/               # Outputs (gitignored)
+├── docs/                      # Documentation
+│   ├── THESIS_ROADMAP.md
+│   ├── ML_ROADMAP.md
+│   ├── MEDICAL_BACKGROUND.md
+│   ├── ARCHITECTURE.md
+│   ├── MODEL_COMPARISON_GUIDE.md
+│   └── SERVER_DEPLOYMENT.md
+├── scripts/
+│   ├── start_server.sh
+│   └── setup_experiments.sh
+└── requirements/
+    ├── requirements-base.txt
+    ├── requirements-train.txt
+    └── requirements-serve.txt
+```
 │   ├── MEDICAL_BACKGROUND.md # Essential clinical knowledge
 │   ├── ARCHITECTURE.md       # System design
 │   ├── MODEL_COMPARISON_GUIDE.md # Experiment guide
@@ -91,28 +103,28 @@ See `.env.example` for all available options.
     └── requirements-serve.txt # Serving-specific
 ```
 
-### 3. Training (optional)
+### 4. Training (optional)
 
-Open `notebooks/01_train_baseline.ipynb` and run cells in order:
-1. Setup and config
-2. Load metadata and split
-3. Dataset and transforms
-4. Model + helpers
-5. Train with early stopping (or load checkpoint)
-6. Evaluation (ROC/PR, confusion matrix)
+Open `notebooks/01_train_baseline.ipynb` and run the cells in order. The notebook walks through:
+1. Setup and configuration
+2. Loading metadata and creating train/val/test splits
+3. Dataset class and transforms
+4. Model definition and training helpers
+5. Training with early stopping (or load existing checkpoint)
+6. Evaluation with ROC/PR curves and confusion matrix
 7. Grad-CAM visualizations
 8. Temperature calibration
 9. Operating thresholds for melanoma
-10. Sanity inference with calibrated verdict
+10. Sanity check inference with calibrated verdict
 
-The notebook saves:
+The notebook saves these files:
 - `models/checkpoints/melanoma_resnet50_nb.pth`
 - `models/label_maps/label_map_nb.json`
 - `models/checkpoints/temperature.json` (T ≈ 1.865)
 - `models/checkpoints/operating_points.json` (spec95 ≈ 0.724, spec90 ≈ 0.615)
 - `experiments/calibration/reliability_pre_post.png`
 
-### 4. CLI Inference
+### 5. CLI Inference
 
 ```bash
 python -m src.inference.cli \
@@ -125,27 +137,27 @@ python -m src.inference.cli \
   --out experiments/overlay_sanity.jpg
 ```
 
-**Options:**
-- `--no-ask`: Disable interactive follow-up Q&A (useful for batch runs or CI)
+Options:
+- `--no-ask`: Disable interactive Q&A (useful for batch runs)
 - `--operating-key`: Choose `melanoma_spec95` (default, ~95% specificity) or `melanoma_spec90` (~90% specificity)
 
-**Example output:**
+Example output:
 ```
 Prediction: benign keratosis-like lesions | p=0.956
 Calibrated melanoma p=0.029 | threshold=0.724 → VERDICT: non-melanoma
 Grad-CAM overlay saved to experiments/overlay_sanity.jpg
 ```
 
-### 5. Gradio Web UI with Interactive Chat
+### 6. Gradio Web UI
 
-**For local testing:**
+For local testing:
 ```bash
 bash scripts/start_server.sh
 # or directly:
 python src/serve_gradio.py
 ```
 
-**For remote access (Ubuntu server → Mac client):**
+For remote access (e.g., Ubuntu server to Mac client):
 
 1. Configure `.env`:
 ```bash
@@ -160,28 +172,20 @@ GRADIO_PASSWORD=your_password
 bash scripts/start_server.sh
 ```
 
-3. On Mac, open: `http://<server-ip>:7860`
+3. On client machine, open: `http://<server-ip>:7860`
 
-See [docs/SERVER_DEPLOYMENT.md](docs/SERVER_DEPLOYMENT.md) for complete server setup guide.
+See `docs/SERVER_DEPLOYMENT.md` for complete server setup instructions.
 
-Then open the printed URL (default: http://127.0.0.1:7860/).
-
-**The UI shows:**
+The UI provides:
 - Grad-CAM heatmap overlay
 - Predicted class
 - Calibrated class probabilities (JSON)
-- Melanoma decision string (probability vs threshold)
-- **Interactive Chat Q&A** (appears when melanoma probability is uncertain)
+- Melanoma decision (probability vs threshold)
+- Interactive chat Q&A when melanoma probability is uncertain
 
-**Chat Q&A Feature:**
-When the melanoma probability is within ±0.15 of the operating threshold (indicating uncertainty), the UI automatically shows a chat interface that:
-1. Asks 3 clinical questions about the lesion (size changes, diameter, borders/colors)
-2. Refines the melanoma probability based on your answers (yes/no)
-3. Provides a final risk assessment after all questions are answered
+The chat feature appears when melanoma probability is within ±0.15 of the operating threshold. It asks 3 clinical questions about the lesion (size changes, diameter, border/color irregularity) and provides educational context based on ABCDE criteria.
 
-This mimics the CLI's `ask_followup()` function but in an interactive web interface.
-
-### 6. Model Comparison Experiments (for Thesis)
+### 7. Model Comparison Experiments
 
 Compare multiple architectures on HAM10000:
 
@@ -194,50 +198,48 @@ python src/training/compare_models.py \
   --architectures resnet50 efficientnet_b3 densenet121 vit_b_16 \
   --epochs 20 --batch-size 32
 
-# Generate thesis-ready visualizations
+# Generate visualizations
 python src/training/visualize_comparison.py \
   --results experiments/model_comparison/comparison_results.json \
   --output-dir experiments/model_comparison/visualizations
 ```
 
-**Outputs:**
-- Comparison tables (CSV + LaTeX)
-- Training curves, metrics bar charts, calibration plots
-- Confusion matrices, inference time comparison
-- Comprehensive summary report with model rankings
+Outputs:
+- Comparison tables (CSV and LaTeX format)
+- Training curves, metrics charts, calibration plots
+- Confusion matrices, inference time comparisons
+- Summary report with model rankings
 
-See [docs/MODEL_COMPARISON_GUIDE.md](docs/MODEL_COMPARISON_GUIDE.md) for detailed instructions.
+See `docs/MODEL_COMPARISON_GUIDE.md` for details.
 
 ## Key Features
 
-### Interactive Chat Q&A (NEW!)
-- Appears in web UI when melanoma probability is uncertain (within ±0.15 of threshold)
-- Asks 3 clinical questions to gather additional information
-- Refines melanoma risk estimate based on answers
-- Provides final verdict after Q&A session
-- Improves diagnostic confidence without requiring full clinical intake
+**Interactive Chat Q&A**
+- Appears when melanoma probability is uncertain
+- Asks clinical questions based on ABCDE criteria
+- Provides educational context
+- Helps refine risk assessment
 
-### Temperature Calibration
-- Fits a temperature parameter T on validation logits to minimize cross-entropy
-- Divides logits by T before softmax → better-calibrated probabilities
-- Metrics: ECE (Expected Calibration Error), Brier score, reliability diagram
+**Temperature Calibration**
+- Fits temperature parameter T on validation data to improve probability calibration
+- Divides logits by T before softmax
+- Evaluated with ECE (Expected Calibration Error), Brier score, reliability diagrams
 
-### Operating Thresholds
-- Computes ROC for melanoma vs rest
-- Selects thresholds at target specificity (e.g., ≥95%, ≥90%)
-- CLI and Gradio use these thresholds for binary melanoma decisions
+**Operating Thresholds**
+- Computes ROC for melanoma detection
+- Selects thresholds at target specificity (95% or 90%)
+- Used for binary melanoma decisions in CLI and web UI
 
-### Grad-CAM Explanations
-- Highlights image regions influencing the prediction
-- Uses torchcam library with layer4 as the target layer
-- Heatmap overlayed on original image at 50% alpha
+**Grad-CAM Explanations**
+- Highlights image regions influencing predictions
+- Uses torchcam library with layer4 as target
+- Overlays heatmap on original image at 50% alpha
 
-### Model Comparison Framework (NEW!)
-- Train multiple architectures: ResNet50, EfficientNet-B3, DenseNet121, ViT-B/16
-- Comprehensive evaluation: accuracy, AUC, calibration (ECE/Brier), inference speed
-- Automatic generation of thesis-ready plots and LaTeX tables
-- Rankings by different criteria (accuracy, calibration, speed)
-- See [docs/MODEL_COMPARISON_GUIDE.md](docs/MODEL_COMPARISON_GUIDE.md)
+**Model Comparison Framework**
+- Supports ResNet50, EfficientNet-B3, DenseNet121, ViT-B/16
+- Evaluates accuracy, AUC, calibration, inference speed
+- Generates plots and LaTeX tables
+- Rankings by different criteria
 
 ## Testing
 
@@ -245,18 +247,14 @@ See [docs/MODEL_COMPARISON_GUIDE.md](docs/MODEL_COMPARISON_GUIDE.md) for detaile
 python -m unittest tests/test_smoke_inference.py
 ```
 
-Smoke test validates:
-- Model and label map loading
-- Temperature scaling application
-- Operating point JSON parsing
-- Single forward pass with calibrated probabilities
+Validates model loading, temperature scaling, operating points, and inference.
 
 ## Notes
 
-- **Data:** Place `HAM10000_metadata.csv` and images in `data/ds/img/`. The CSV should have columns `image_id` and `dx` (diagnosis label).
-- **Security:** Always set `GRADIO_USERNAME` and `GRADIO_PASSWORD` in `.env` when deploying on a network. Never commit `.env` to git!
-- **Server Setup:** See [docs/SERVER_DEPLOYMENT.md](docs/SERVER_DEPLOYMENT.md) for Ubuntu GPU server + Mac client architecture.
-- **Reproducibility:** Set `SEED=42` in the notebook; consider pinning exact package versions in requirements.
+- **Data**: Place `HAM10000_metadata.csv` and images in `data/ds/img/`. CSV needs columns `image_id` and `dx` (diagnosis label).
+- **Security**: Always set `GRADIO_USERNAME` and `GRADIO_PASSWORD` in `.env` when deploying on a network. Never commit `.env`!
+- **Server Setup**: See `docs/SERVER_DEPLOYMENT.md` for Ubuntu GPU server + Mac client setup.
+- **Reproducibility**: Set `SEED=42` in notebooks. Consider pinning exact package versions in requirements.
 - **Thesis:** Include reliability plot, report ECE/Brier pre/post calibration, document chosen operating point (spec95/spec90), and discuss Grad-CAM faithfulness.
 
 ## License

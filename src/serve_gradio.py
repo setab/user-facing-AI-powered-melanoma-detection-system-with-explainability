@@ -106,15 +106,17 @@ def predict_and_explain(img: Image.Image, model: nn.Module, labels: list, temper
 
     # Melanoma verdict using operating point if available
     melanoma_decision = "N/A"
+    melanoma_verdict = "unknown"  # For use in explanation generation
     if op is not None:
         mel_idx = int(op.get('class_index', -1))
         thr_key = 'melanoma_spec95'
         threshold = float(op.get('thresholds', {}).get(thr_key, 0.5))
         if mel_idx >= 0 and mel_idx < len(labels):
             mel_prob = float(probs[mel_idx])
-            melanoma_decision = f"p={mel_prob:.3f} | thr={threshold:.3f} → {'melanoma' if mel_prob >= threshold else 'non-melanoma'}"
+            melanoma_verdict = 'melanoma' if mel_prob >= threshold else 'non-melanoma'
+            melanoma_decision = f"p={mel_prob:.3f} | thr={threshold:.3f} → {melanoma_verdict}"
 
-    return result, labels[pred_idx], prob_dict, melanoma_decision
+    return result, labels[pred_idx], prob_dict, melanoma_decision, melanoma_verdict
 
 
 def plt_colormap(arr: np.ndarray) -> np.ndarray:
@@ -149,92 +151,68 @@ def generate_ai_explanation(pred_label: str, prob_dict: dict, melanoma_prob: flo
     explanation_parts = []
     
     # 1. Primary classification reasoning
-    explanation_parts.append(f"🔍 **Primary Classification: {top1_label.upper()}**")
+    explanation_parts.append(f"Primary Classification: {top1_label.upper()}")
     explanation_parts.append(f"The model analyzed the lesion with **{confidence}** ({top1_prob:.1%} probability).")
     explanation_parts.append("")
     
     # 2. Explain what features led to this conclusion
-    explanation_parts.append("**Why this classification?**")
+    explanation_parts.append("Basis for Classification:")
     
     if top1_label == "melanoma":
-        explanation_parts.append("The model detected patterns consistent with melanoma characteristics:")
-        explanation_parts.append("- Irregular pigmentation patterns in the highlighted regions (Grad-CAM heatmap)")
-        explanation_parts.append("- Asymmetric features suggesting uncontrolled cell growth")
-        explanation_parts.append("- Color variations and structural irregularities")
+        explanation_parts.append("The model detected irregular pigmentation patterns in the highlighted regions, asymmetric features suggesting uncontrolled cell growth, and color variations with structural irregularities consistent with melanoma characteristics.")
     elif top1_label in ["basal cell carcinoma", "squamous cell carcinoma", "actinic keratosis"]:
-        explanation_parts.append(f"The model identified features typical of {top1_label}:")
-        explanation_parts.append("- Specific growth patterns in the highlighted regions")
-        explanation_parts.append("- Surface texture and pigmentation characteristics")
-        explanation_parts.append("- Structural features distinguishing it from melanoma")
+        explanation_parts.append(f"The model identified specific growth patterns, surface texture, and pigmentation characteristics typical of {top1_label}, with structural features distinguishing it from melanoma.")
     elif top1_label == "nevus":
-        explanation_parts.append("The model identified benign nevus (mole) characteristics:")
-        explanation_parts.append("- Symmetric structure and uniform pigmentation")
-        explanation_parts.append("- Regular borders and consistent coloration")
-        explanation_parts.append("- Patterns typical of benign melanocytic lesions")
+        explanation_parts.append("The model identified symmetric structure, uniform pigmentation, regular borders, and consistent coloration patterns typical of benign nevus (mole).")
     elif top1_label == "seborrheic keratosis":
-        explanation_parts.append("The model detected seborrheic keratosis features:")
-        explanation_parts.append("- 'Stuck-on' appearance and waxy texture patterns")
-        explanation_parts.append("- Well-defined borders without invasive characteristics")
-        explanation_parts.append("- Benign growth patterns in epidermal layers")
+        explanation_parts.append("The model detected 'stuck-on' appearance, waxy texture patterns, well-defined borders without invasive characteristics, and benign growth patterns typical of seborrheic keratosis.")
     else:
         explanation_parts.append(f"The model identified features specific to {top1_label}.")
     
     explanation_parts.append("")
     
     # 3. Explain Grad-CAM heatmap
-    explanation_parts.append("**Grad-CAM Visualization:**")
-    explanation_parts.append("The red/yellow highlighted regions show where the neural network focused its attention:")
-    explanation_parts.append("- **Red areas**: Strongest influence on the classification decision")
-    explanation_parts.append("- **Yellow areas**: Moderate influence with relevant features")
-    explanation_parts.append("- **Blue areas**: Minimal influence on the prediction")
+    explanation_parts.append("Grad-CAM Visualization:")
+    explanation_parts.append("The highlighted regions show where the neural network focused attention during classification. Red areas indicate strongest influence on the decision, yellow areas show moderate influence, and blue areas have minimal effect on the prediction.")
     explanation_parts.append("")
     
     # 4. Differential diagnosis (if there's a close second)
     if top2_prob >= 0.15:
         diff = top1_prob - top2_prob
         if diff < 0.20:
-            explanation_parts.append(f"**Alternative Consideration: {top2_label.title()}** ({top2_prob:.1%})")
-            explanation_parts.append(f"The model also considered {top2_label}, but the distinguishing features favor {top1_label}.")
-            explanation_parts.append("This suggests some overlapping characteristics between these conditions.")
+            explanation_parts.append(f"Alternative Consideration: {top2_label.title()} ({top2_prob:.1%})")
+            explanation_parts.append(f"The model also considered {top2_label}, but distinguishing features favor {top1_label}. This suggests overlapping characteristics between these conditions.")
             explanation_parts.append("")
     
     # 5. Melanoma-specific verdict explanation
     explanation_parts.append("**Melanoma Risk Assessment:**")
     if verdict == "melanoma":
         margin = melanoma_prob - threshold
-        explanation_parts.append(f"⚠️ **POSITIVE for melanoma** (probability {melanoma_prob:.3f} exceeds threshold {threshold:.3f} by {margin:.3f})")
+        explanation_parts.append(f"POSITIVE for melanoma (probability {melanoma_prob:.3f} exceeds threshold {threshold:.3f})")
         explanation_parts.append("")
-        explanation_parts.append("**This means:**")
-        explanation_parts.append("- The model's melanoma probability is above the 95% specificity threshold")
-        explanation_parts.append("- This threshold minimizes false positives (5% false alarm rate)")
-        explanation_parts.append("- The lesion exhibits features concerning for melanoma")
+        explanation_parts.append("The melanoma probability is above the 95% specificity threshold. This threshold minimizes false positives (5% false alarm rate). The lesion exhibits features concerning for melanoma.")
         explanation_parts.append("")
-        explanation_parts.append("🚨 **Action Required:** Immediate dermatologist referral recommended")
+        explanation_parts.append("Clinical Action: Immediate dermatologist referral recommended.")
     else:
         margin = threshold - melanoma_prob
-        explanation_parts.append(f"✓ **NEGATIVE for melanoma** (probability {melanoma_prob:.3f} is below threshold {threshold:.3f} by {margin:.3f})")
+        explanation_parts.append(f"NEGATIVE for melanoma (probability {melanoma_prob:.3f} is below threshold {threshold:.3f})")
         explanation_parts.append("")
-        explanation_parts.append("**This means:**")
-        explanation_parts.append("- The melanoma probability is below the 95% specificity threshold")
-        explanation_parts.append("- The lesion's features are more consistent with other diagnoses")
+        explanation_parts.append("The melanoma probability is below the 95% specificity threshold. The lesion's features are more consistent with other diagnoses.")
         
         if melanoma_prob >= 0.15:
-            explanation_parts.append("- However, melanoma probability is not negligible - monitoring recommended")
+            explanation_parts.append("However, melanoma probability is not negligible - continued monitoring recommended.")
         
         explanation_parts.append("")
         if top1_label == "nevus":
-            explanation_parts.append("📋 **Recommendation:** Routine monitoring; see dermatologist if changes occur")
+            explanation_parts.append("Recommendation: Routine monitoring; consult dermatologist if changes occur.")
         else:
-            explanation_parts.append("📋 **Recommendation:** Dermatologist evaluation for definitive diagnosis and management")
+            explanation_parts.append("Recommendation: Dermatologist evaluation for definitive diagnosis and management.")
     
     explanation_parts.append("")
     
     # 6. Model calibration info
-    explanation_parts.append("**Model Reliability:**")
-    explanation_parts.append("- Trained on 10,000+ dermatology images (HAM10000 dataset)")
-    explanation_parts.append("- Temperature-calibrated probabilities for improved reliability")
-    explanation_parts.append("- Operating threshold optimized for 95% specificity (low false positive rate)")
-    explanation_parts.append("- Grad-CAM provides visual explanation of decision-making process")
+    explanation_parts.append("Model Information:")
+    explanation_parts.append("Trained on 10,000+ dermatology images from HAM10000 dataset. Probabilities are temperature-calibrated for reliability. Operating threshold optimized for 95% specificity to minimize false positives. Grad-CAM provides visual explanation of decision regions.")
     
     return "\n".join(explanation_parts)
 
@@ -258,16 +236,16 @@ def make_interface(model: nn.Module, labels: list, temperature: Optional[float],
         risk_assessment = ""
         if answer_lower in ['yes', 'y']:
             risk_factors = [
-                "⚠️ Changes in lesion characteristics are a key warning sign (ABCDE: E for Evolving). This increases clinical concern.",
-                "⚠️ Diameter >6mm is a melanoma risk factor (ABCDE: D for Diameter). However, some melanomas can be smaller.",
-                "⚠️ Irregular borders and multiple colors suggest asymmetric growth (ABCDE: B, C), which warrants clinical evaluation."
+                "Changes in lesion characteristics are a key warning sign (ABCDE: E for Evolving). This increases clinical concern.",
+                "Diameter >6mm is a melanoma risk factor (ABCDE: D for Diameter). However, some melanomas can be smaller.",
+                "Irregular borders and multiple colors suggest asymmetric growth (ABCDE: B, C), which warrants clinical evaluation."
             ]
             risk_assessment = risk_factors[question_idx]
         elif answer_lower in ['no', 'n']:
             reassurance = [
-                "✓ Stable lesions are generally lower risk, though sudden changes can occur. Continue monitoring.",
-                "✓ Smaller diameter reduces melanoma likelihood, but size alone is not conclusive.",
-                "✓ Regular borders and uniform color are reassuring signs, though exceptions exist."
+                "Stable lesions are generally lower risk, though sudden changes can occur. Continue monitoring.",
+                "Smaller diameter reduces melanoma likelihood, but size alone is not conclusive.",
+                "Regular borders and uniform color are reassuring signs, though exceptions exist."
             ]
             risk_assessment = reassurance[question_idx]
         else:
@@ -286,24 +264,17 @@ def make_interface(model: nn.Module, labels: list, temperature: Optional[float],
             # All questions answered - show educational summary aligned with model
             threshold = float(op.get('thresholds', {}).get('melanoma_spec95', 0.5)) if op else 0.5
             
-            summary = f"""✅ **Clinical Assessment Complete**
+            summary = f"""Clinical Assessment Complete
 
-**AI Model Analysis:**
-- Melanoma probability: **{base_prob:.3f}**
-- Decision threshold (95% specificity): {threshold:.3f}
-- **Model verdict: {initial_verdict.upper()}**
+AI Model Analysis:
+Melanoma probability: {base_prob:.3f}
+Decision threshold (95% specificity): {threshold:.3f}
+Model verdict: {initial_verdict.upper()}
 
-**Important Notes:**
-- This AI system achieves 95% specificity (low false positive rate)
-- Clinical examination by a dermatologist is essential for diagnosis
-- The ABCDE criteria help identify suspicious lesions:
-  - **A**symmetry: One half unlike the other
-  - **B**order: Irregular, scalloped, or poorly defined
-  - **C**olor: Varied shades (brown, black, tan, red, white, blue)
-  - **D**iameter: >6mm (though melanomas can be smaller)
-  - **E**volving: Changes in size, shape, color, or symptoms
+Important Notes:
+This system achieves 95% specificity (low false positive rate). Clinical examination by a dermatologist is essential for definitive diagnosis. The ABCDE criteria help identify suspicious lesions: Asymmetry (one half unlike the other), Border (irregular or poorly defined), Color (varied shades), Diameter (>6mm, though melanomas can be smaller), and Evolving (changes in size, shape, color, or symptoms).
 
-⚕️ **Recommendation:** Consult a dermatologist for professional evaluation."""
+Recommendation: Consult a dermatologist for professional evaluation."""
             
             chat_history.append((None, summary))
             return base_prob, chat_history, "", True
@@ -316,7 +287,7 @@ def make_interface(model: nn.Module, labels: list, temperature: Optional[float],
         if image.mode != 'RGB':
             image = image.convert('RGB')
         
-        overlay, pred_label, prob_dict, decision = predict_and_explain(image, model, labels, temperature, op)
+        overlay, pred_label, prob_dict, decision, melanoma_verdict = predict_and_explain(image, model, labels, temperature, op)
         
         # Sort probabilities descending
         items = sorted(prob_dict.items(), key=lambda kv: kv[1], reverse=True)
@@ -325,7 +296,8 @@ def make_interface(model: nn.Module, labels: list, temperature: Optional[float],
         # Generate AI explanation of the decision
         mel_prob = float(prob_dict.get('melanoma', 0.0))
         threshold = float(op.get('thresholds', {}).get('melanoma_spec95', 0.5)) if op else 0.5
-        initial_verdict = "melanoma" if mel_prob >= threshold else "non-melanoma"
+        # Use the melanoma_verdict from predict_and_explain to ensure consistency
+        initial_verdict = melanoma_verdict if melanoma_verdict != "unknown" else ("melanoma" if mel_prob >= threshold else "non-melanoma")
         
         ai_explanation = generate_ai_explanation(
             pred_label=pred_label,
@@ -346,8 +318,8 @@ def make_interface(model: nn.Module, labels: list, temperature: Optional[float],
             if True:  # TESTING: Always show chat
                 show_chat = True
                 chat_history = [
-                    (None, f"🧪 **Initial Assessment**: {initial_verdict.upper()} (probability: {mel_prob:.3f}, threshold: {threshold:.3f})"),
-                    (None, "🤔 Let me ask clinical questions to provide additional context (educational purpose)."),
+                    (None, f"Initial Assessment: {initial_verdict.upper()} (probability: {mel_prob:.3f}, threshold: {threshold:.3f})"),
+                    (None, "The following questions provide clinical context based on ABCDE criteria (educational purpose)."),
                     (None, QA_QUESTIONS[0])
                 ]
         
@@ -372,21 +344,21 @@ def make_interface(model: nn.Module, labels: list, temperature: Optional[float],
     
     # Build interface with Blocks for more control
     with gr.Blocks(title="Melanoma Detection with XAI") as demo:
-        gr.Markdown("# 🔬 Melanoma Detection with XAI (Grad-CAM)")
+        gr.Markdown("# Melanoma Detection with Explainable AI")
         gr.Markdown("Upload a skin lesion image for AI-powered analysis with explainable AI visualization.")
         
         with gr.Row():
             with gr.Column(scale=1):
                 image_input = gr.Image(type="pil", label="Upload skin lesion image")
-                predict_btn = gr.Button("🔍 Analyze Image", variant="primary", size="lg")
+                predict_btn = gr.Button("Analyze Image", variant="primary", size="lg")
             
             with gr.Column(scale=1):
                 gradcam_output = gr.Image(type="pil", label="Grad-CAM Explanation")
-                pred_label_output = gr.Label(label="Predicted Class")
+                pred_label_output = gr.Label(label="Most Likely Class (Highest Probability)")
         
         with gr.Row():
             probs_output = gr.JSON(label="Class Probabilities (Calibrated)")
-            decision_output = gr.Textbox(label="Melanoma Decision", lines=2)
+            decision_output = gr.Textbox(label="Melanoma Decision (Clinical Threshold: 72.4%)", lines=2)
         
         # AI Explanation section
         with gr.Row():
@@ -395,8 +367,8 @@ def make_interface(model: nn.Module, labels: list, temperature: Optional[float],
         # Q&A Chat section (hidden by default)
         with gr.Row(visible=False) as chat_row:
             with gr.Column():
-                gr.Markdown("### 💬 Clinical Context Q&A")
-                gr.Markdown("Answer questions to learn about melanoma risk factors (ABCDE criteria). **Note:** This provides educational context only and does not change the AI diagnosis above.")
+                gr.Markdown("### Clinical Context Questions")
+                gr.Markdown("Answer questions to learn about melanoma risk factors based on ABCDE criteria. Note: This provides educational context only and does not change the diagnosis above.")
                 chatbot = gr.Chatbot(label="Q&A Session", height=350)
                 with gr.Row():
                     chat_input = gr.Textbox(
@@ -453,8 +425,12 @@ def make_interface(model: nn.Module, labels: list, temperature: Optional[float],
         - The model uses a calibrated ResNet-50 trained on HAM10000 dataset
         - Grad-CAM visualization highlights regions influencing the prediction
         - Probabilities are temperature-calibrated for better reliability
-        - Melanoma verdict uses an operating threshold (specificity ≈ 95%)
+        - **Melanoma Decision** uses a strict 72.4% threshold (95% specificity) to minimize false alarms
+        - **Most Likely Class** shows which diagnosis has the highest probability (may differ from melanoma decision)
         - When probability is uncertain, clinical Q&A helps refine the assessment
+        
+        Important: A lesion can have "melanoma" as the most likely class but still be classified as "non-melanoma" 
+        if the probability doesn't meet the strict clinical threshold. This conservative approach reduces false positives.
         """)
     
     return demo
@@ -484,12 +460,12 @@ def main():
     
     if Config.has_auth():
         launch_kwargs['auth'] = Config.get_auth()
-        print(f"🔒 Authentication enabled for user: {Config.GRADIO_USERNAME}")
+        print(f"Authentication enabled for user: {Config.GRADIO_USERNAME}")
     else:
-        print("⚠️  WARNING: No authentication set. Anyone can access this interface.")
-        print("   Set GRADIO_USERNAME and GRADIO_PASSWORD in .env for security.")
+        print("WARNING: No authentication set. Anyone can access this interface.")
+        print("Set GRADIO_USERNAME and GRADIO_PASSWORD in .env for security.")
     
-    print(f"🚀 Starting Gradio on {Config.GRADIO_SERVER_NAME}:{Config.GRADIO_SERVER_PORT}")
+    print(f"Starting Gradio server on {Config.GRADIO_SERVER_NAME}:{Config.GRADIO_SERVER_PORT}")
     
     demo.launch(**launch_kwargs)
 
