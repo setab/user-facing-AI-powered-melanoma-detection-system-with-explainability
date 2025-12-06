@@ -47,7 +47,7 @@ Testing:
   ✅ All tests passing (1.009s)
 
 Server:
-  ✅ IP configured: SERVER_IP_HIDDEN:7860
+  ✅ IP configured: YOUR_SERVER_IP:7860
   ✅ Authentication: Username "the"
   ✅ Mac browser access enabled
   ✅ Import paths fixed
@@ -92,8 +92,8 @@ Step 1: Train Baseline Model (30-60 min) ⚠️ DO NOW
 
 Step 2: Test Server (5 min)
   $ bash scripts/start_server.sh
-  → Open: http://SERVER_IP_HIDDEN:7860
-  → Login: the / [REDACTED]
+  → Open: http://YOUR_SERVER_IP:7860
+  → Login: [see .env file]
   → Upload image, test chat Q&A
 
 Step 3: Read Medical Background (3-4 hours)
@@ -307,8 +307,8 @@ Total Time: 40-50 hours active work
 
 Start Server:
   $ bash scripts/start_server.sh
-  → Access: http://SERVER_IP_HIDDEN:7860
-  → Login: the / [REDACTED]
+  → Access: http://YOUR_SERVER_IP:7860
+  → Login: [see .env file]
 
 Train Model:
   $ jupyter notebook notebooks/01_train_baseline.ipynb

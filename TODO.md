@@ -51,7 +51,7 @@
 
 #### Server Configuration
 - [x] Server IP configured: SERVER_IP_HIDDEN:7860
-- [x] Authentication enabled (username: the)
+- [x] Authentication enabled (configured in .env)
 - [x] Mac browser access configured
 - [x] Import path issues resolved
 - [x] Chat visibility testing mode enabled
@@ -310,7 +310,7 @@ jupyter notebook notebooks/01_train_baseline.ipynb
 ```bash
 bash scripts/start_server.sh
 # Open: http://SERVER_IP_HIDDEN:7860
-# Login: the / [REDACTED]
+# Login: Use credentials from .env file
 ```
 **Why**: Verify everything works with trained model
 

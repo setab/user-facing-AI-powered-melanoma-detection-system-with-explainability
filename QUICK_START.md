@@ -2,9 +2,9 @@
 
 ## Current Status
 
-✅ Server IP: **SERVER_IP_HIDDEN**  
+✅ Server configured (check .env file)  
 ✅ Port: **7860**  
-✅ Authentication: Username: `the`, Password: `[REDACTED]`  
+✅ Authentication: Configured in .env  
 ❌ Model weights: **MISSING** - Need to train first!
 
 ## Immediate Steps to Run
@@ -91,8 +91,8 @@ http://SERVER_IP_HIDDEN:7860
 ```
 
 **Login:**
-- Username: `the`
-- Password: `[REDACTED]`
+- Use credentials from your .env file
+- GRADIO_USERNAME and GRADIO_PASSWORD
 
 ### Step 3: Check Firewall (If Connection Fails)
 
@@ -185,6 +185,6 @@ pkill -f serve_gradio
 
 ---
 
-**Mac URL:** http://SERVER_IP_HIDDEN:7860  
-**Login:** the / [REDACTED]  
+**Mac URL:** http://YOUR_SERVER_IP:7860  
+**Login:** See .env file for credentials  
 **Status:** Ready after model training ✅

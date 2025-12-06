@@ -12,5 +12,5 @@ echo "Check your .env file for server configuration"
 echo "Default port: 7860"
 echo ""
 
-# Use the correct Python environment
+# Use the correct dPython environment
 /home/the/miniconda/envs/ml2/bin/python src/serve_gradio.py

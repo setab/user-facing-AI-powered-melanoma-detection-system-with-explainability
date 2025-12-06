@@ -61,8 +61,8 @@ bash scripts/start_server.sh
 
 ### 2. Access Interface
 - URL: http://SERVER_IP_HIDDEN:7860
-- Username: [REDACTED]
-- Password: [REDACTED]
+- Username: (see .env file)
+- Password: (see .env file)
 
 ### 3. Use System
 1. Upload a skin lesion image

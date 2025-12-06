@@ -35,8 +35,8 @@
 # .env (gitignored) - CURRENTLY CONFIGURED
 GRADIO_SERVER_NAME=0.0.0.0          # ✅ Remote access enabled
 GRADIO_SERVER_PORT=7860              # ✅ Port configured
-GRADIO_USERNAME=REDACTED                  # ✅ Auth enabled
-GRADIO_PASSWORD=[REDACTED]         # ✅ Auth enabled
+GRADIO_USERNAME=your_username        # ✅ Auth enabled
+GRADIO_PASSWORD=your_password        # ✅ Auth enabled
 WEIGHTS_PATH=models/checkpoints/melanoma_resnet50_nb.pth  # ✅ Dummy model created
 LABEL_MAP_PATH=models/label_maps/label_map_nb.json
 TEMPERATURE_JSON_PATH=models/checkpoints/temperature.json
